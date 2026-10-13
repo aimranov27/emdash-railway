@@ -1,0 +1,86 @@
+# Keeps the template current. Railway shows an "update available" notice to
+# everyone who deployed the template whenever main changes, so only versions
+# that pass the smoke test ever reach main.
+name: Update versions
+
+on:
+  schedule:
+    - cron: "37 6 * * *"
+  workflow_dispatch:
+    inputs:
+      force_all:
+        description: "Also bump Astro, its adapters, pg and Node.js even if EmDash and the template did not change"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: update-versions
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check for new releases
+        id: check
+        env:
+          FORCE_ALL: ${{ inputs.force_all && '1' || '' }}
+        run: |
+          changes="$(./scripts/update-versions.sh)"
+          if [ -z "$changes" ]; then
+            echo "Everything is up to date."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$changes"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          {
+            echo "changes<<EOF"
+            echo "$changes"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test the new versions
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          for template in blog starter marketing portfolio; do
+            echo "::group::Smoke test: $template"
+            EMDASH_TEMPLATE="$template" ./scripts/smoke-test.sh
+            echo "::endgroup::"
+          done
+
+      - name: Commit, tag and release
+        if: steps.check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANGES: ${{ steps.check.outputs.changes }}
+        run: |
+          version="$(sed -n 's/^ARG EMDASH_VERSION=//p' Dockerfile)"
+          tag="v${version}-$(date -u +%Y%m%d%H%M)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: update versions" -m "$CHANGES"
+          git push origin HEAD:main
+          gh release create "$tag" --title "$tag" --notes "$(printf '%s\n\nEmDash releases: https://github.com/emdash-cms/emdash/releases\n' "$CHANGES")"
+
+      - name: Open an issue if the new versions break the template
+        if: failure() && steps.check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANGES: ${{ steps.check.outputs.changes }}
+        run: |
+          title="Automatic update failed the smoke test"
+          if [ -z "$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number')" ]; then
+            gh issue create --title "$title" --body "$(printf 'These version bumps were **not** published because the smoke test failed:\n\n%s\n\nRun: %s/%s/actions/runs/%s\n' "$CHANGES" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")"
+          fi

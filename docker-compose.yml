@@ -1,0 +1,43 @@
+# Local copy of the Railway setup: the EmDash service built from this repo,
+# Railway's standard PostgreSQL, and a volume at /data.
+# scripts/smoke-test.sh runs this with its own project name and port.
+#
+#   SITE_PORT=8080 docker compose up --build
+#   open http://localhost:8080/_emdash/admin  (password: EMDASH_SETUP_PASSWORD below)
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: local-postgres-password
+      POSTGRES_DB: railway
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d railway"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  emdash:
+    build:
+      context: .
+      args:
+        EMDASH_SITE_URL: http://localhost:${SITE_PORT:-8080}
+        EMDASH_TEMPLATE: ${EMDASH_TEMPLATE:-blog}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${SITE_PORT:-8080}:8080"
+    environment:
+      DATABASE_URL: postgresql://postgres:local-postgres-password@postgres:5432/railway
+      EMDASH_SITE_URL: http://localhost:${SITE_PORT:-8080}
+      EMDASH_SETUP_PASSWORD: ${EMDASH_SETUP_PASSWORD:-local-setup-password}
+      EMDASH_ENCRYPTION_KEY: ${EMDASH_ENCRYPTION_KEY:-emdash_enc_v1_bG9jYWwtb25seS1lbmNyeXB0aW9uLWtleS0zMmJ5dGU}
+    volumes:
+      - emdash-data:/data
+
+volumes:
+  postgres-data:
+  emdash-data:
