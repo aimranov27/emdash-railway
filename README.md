@@ -2,7 +2,7 @@
 
 Run an [EmDash](https://github.com/emdash-cms/emdash) site on Railway. EmDash is an open-source CMS built on Astro, with a block editor, media library, users and roles, plugins and passkey login.
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/TEMPLATE_CODE?utm_medium=integration&utm_source=template&utm_campaign=emdash)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/emdash-cms?utm_medium=integration&utm_source=template&utm_campaign=emdash)
 
 ## What you get
 

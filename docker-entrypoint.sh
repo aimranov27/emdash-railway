@@ -23,6 +23,13 @@ fi
 
 mkdir -p "$DATA_DIR/uploads" "$DATA_DIR/sessions"
 
+# A key pasted into Railway with a stray newline or space would be rejected
+# by EmDash, so strip whitespace before it starts.
+if [ -n "${EMDASH_ENCRYPTION_KEY:-}" ]; then
+  EMDASH_ENCRYPTION_KEY="$(printf '%s' "$EMDASH_ENCRYPTION_KEY" | tr -d '[:space:]')"
+  export EMDASH_ENCRYPTION_KEY
+fi
+
 if [ -n "${DATABASE_URL:-}" ] && [ -z "${PGHOST:-}" ]; then
   # Prints shell-quoted exports. Node is used because URL parsing and
   # percent-decoding of passwords are easy to get wrong in shell.
