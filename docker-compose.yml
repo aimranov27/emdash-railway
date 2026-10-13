@@ -6,8 +6,9 @@
 #   open http://localhost:8080/_emdash/admin  (password: EMDASH_SETUP_PASSWORD below)
 services:
   postgres:
-    image: postgres:17-alpine
+    image: ghcr.io/railwayapp-templates/postgres-ssl:18
     environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: local-postgres-password
       POSTGRES_DB: railway
